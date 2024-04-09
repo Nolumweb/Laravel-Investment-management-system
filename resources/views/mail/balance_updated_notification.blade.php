@@ -6,7 +6,7 @@ Hello {{ $user->name }},
 
 Your balance has been {{ $transactionType === 'deduct' ? 'deducted' : 'credited' }}.
 
-Amount: {{ $amount }}
+-Amount: {{ $amount }}
 
 Thank you.
 

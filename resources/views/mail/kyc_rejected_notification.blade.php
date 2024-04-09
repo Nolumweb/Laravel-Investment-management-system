@@ -6,7 +6,7 @@ Hello {{ $kyc->user->name }},
 
 Your KYC document has been rejected.
 
-Reason: {{ $kyc->feedback }}
+-Reason: {{ $kyc->feedback }}
 
 Thank you.
 
