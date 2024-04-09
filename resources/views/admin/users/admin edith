@@ -1,0 +1,598 @@
+
+
+<?php
+
+namespace Laravel\Sanctum\Http\Middleware;
+
+use Closure;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\SessionGuard;
+use Illuminate\Contracts\Auth\Factory as AuthFactory;
+use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\Response;
+
+class AuthenticateSession
+{
+    /**
+     * The authentication factory implementation.
+     *
+     * @var \Illuminate\Contracts\Auth\Factory
+     */
+    protected $auth;
+
+    /**
+     * Create a new middleware instance.
+     *
+     * @param  \Illuminate\Contracts\Auth\Factory  $auth
+     * @return void
+     */
+    public function __construct(AuthFactory $auth)
+    {
+        $this->auth = $auth;
+    }
+
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     *
+     * @throws \Illuminate\Auth\AuthenticationException
+     */
+    public function handle(Request $request, Closure $next): Response
+    {
+        if (! $request->hasSession() || ! $request->user()) {
+            return $next($request);
+        }
+
+        $guards = Collection::make(Arr::wrap(config('sanctum.guard')))
+            ->mapWithKeys(fn ($guard) => [$guard => $this->auth->guard($guard)])
+            ->filter(fn ($guard) => $guard instanceof SessionGuard);
+
+        $shouldLogout = $guards->filter(
+            fn ($guard, $driver) => $request->session()->has('password_hash_'.$driver)
+        )->filter(
+            fn ($guard, $driver) => $request->session()->get('password_hash_'.$driver) !==
+                                    $request->user()->getAuthPassword()
+        );
+
+        if ($shouldLogout->isNotEmpty()) {
+            $shouldLogout->each->logoutCurrentDevice();
+
+            $request->session()->flush();
+
+            throw new AuthenticationException('Unauthenticated.', [...$shouldLogout->keys()->all(), 'sanctum']);
+        }
+
+        return tap($next($request), function () use ($request, $guards) {
+            if (! is_null($request->user())) {
+                $this->storePasswordHashInSession($request, $guards->keys()->first());
+            }
+        });
+    }
+
+    /**
+     * Store the user's current password hash in the session.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  string  $guard
+     * @return void
+     */
+    protected function storePasswordHashInSession($request, string $guard)
+    {
+        if (! $request->user()) {
+            return;
+        }
+
+        $request->session()->put([
+            "password_hash_{$guard}" => $request->user()->getAuthPassword(),
+        ]);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- betta
+moda/ -->
+<div class="modal fade" id="addSubtractFundModal" tabindex="-1" aria-labelledby="addSubtractFundModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action=" " enctype="multipart/form-data">
+                @csrf
+                <!-- Modal Header -->
+                <div class="modal-header modal-colored-header bg-primary">
+                    <h4 class="modal-title">{{__('Add/ Subtract Balance')}}</h4>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <!-- Modal body -->
+                <div class="modal-body">
+                    <div class="form-group ">
+                        <label>{{__('Balance')}}</label>
+                        <input class="form-control" type="text" value="{{ $user->wallet_balance }}" name="wallet_balance" id="balance" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{{__('Amount')}}</label>
+                        <input class="form-control" type="text" name="balance" id="balance">
+                    </div>
+
+                    <div class="form-group mt-3">
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-primary add-funds">Add Funds</button>
+                            <button type="button" class="btn btn-danger subtract-funds">Subtract Funds</button>
+                        </div>
+                        <input type="hidden" name="add_status" id="add_status" value="1"> <!-- Default to add funds -->
+                    </div>
+                </div>
+                <!-- Modal footer -->
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{__('Close')}}</button>
+                    <button type="submit" class="btn btn-primary">{{__('Submit')}}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- betta
+moda/ -->
+
+
+<!-- @extends('admin.master')
+@section('all')
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<div class="page-content">
+<div class="container-fluid">
+
+
+
+
+
+<div class="m-0 m-md-4 my-4 m-md-0">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card card-primary">
+                    <div class="card-body">
+                        <h4 class="card-title">{{__('Profile')}}</h4>
+                        <div class="form-group">
+                            <div class="image-input">
+                                <img id="image_preview_container" class="preview-image"
+                                     src="{{ (!empty($adminData->profile_image))? url('upload/user_images/'.$adminData->profile_image):url('upload/no_image.jpg') }}""
+                                     alt="preview image">
+                            </div>
+                        </div>
+                        <h3> @lang(ucfirst($user->name))</h3>
+                        <p>@lang('Joined At') @lang($user->created_at->format('d M,Y h:i A')) </p>
+                    </div>
+                </div>
+
+                <div class="card card-primary">
+                    <div class="card-body">
+                        <h4 class="card-title">{{__('User information')}}</h4>
+                        <ul class="list-group">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">{{__('Email')}}
+                                <span>{{ $user->email }}</span></li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">{{__('Username')}}
+                                <span>{{ $user->username }}</span></li>
+
+                            <li class="list-group-item d-flex justify-content-between align-items-center">{{__('Balance')}}
+                                <span>{{ $user->wallet_balance }} </span>
+                            </li>
+                         
+
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="d-flex no-block align-items-center">
+                                        <div class="row">
+                                                <div class="badge-box badge-box-two " id="badge-box-two">
+                                                    <img src="" alt=""  data-toggle="tooltip" data-placement="top" title=""/>
+                                                    <div class="lock-icon">
+                                                        <i class="fa fa-lock"></i>
+                                                    </div>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </li>
+                        </ul>
+                    </div>
+                </div>
+
+
+                <div class="card card-primary">
+                    <div class="card-body">
+                        <h4 class="card-title">{{__('User Action')}}</h4>
+
+
+                        <div class="btn-list ">
+                                <button class="btn btn-outline-primary btn-rounded btn-sm" type="button" data-toggle="modal"
+                                        data-target="#balance">
+                                    <span class="btn-label"><i class="fas fa-hand-holding-usd"></i></span>
+                                    {{__('Add / Subtract Fund')}}
+                                </button>
+
+                            <a href=""
+                               class="btn btn-outline-primary btn-rounded btn-sm">
+                                <span class="btn-label"><i
+                                        class="fas fa-money-bill-alt"></i></span> {{__('Fund Log')}}
+                            </a>
+
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                    <span class="btn-label"><i
+                                            class="fas fa-exchange-alt"></i></span> {{__('Transaction Log')}}
+                                </a>
+
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                    <span class="btn-label"><i class="fas fa-newspaper"></i></span> {{__('Commision')}}
+                                </a>
+
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                <span class="btn-label"><i
+                                        class="fas fa-tree"></i></span> {{__('Investment Log')}}
+                                </a>
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                    <span class="btn-label"><i
+                                            class="fas fa-envelope-open"></i></span> {{__('Send Email')}}
+                                </a>
+
+
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                    <span class="btn-label"><i class="fas fa-users"></i></span> {{__('Referral')}}
+                                </a>
+
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                    <span class="btn-label"><i
+                                            class="fas fa-file-invoice"></i></span> {{__('Kyc Record')}}
+                                </a>
+
+                            <button class="btn btn-outline-primary btn-rounded btn-sm loginAccount" type="button" data-toggle="modal"
+                                    data-target="#signIn"
+                                    data-route="">
+                                <span class="btn-label"><i class="fas fa-sign-in-alt"></i></span>
+                                {{__('Login as User')}}
+                            </button>
+                                <a href=""
+                                   class="btn btn-outline-primary btn-rounded btn-sm">
+                                    <span class="btn-label"><i
+                                            class="fas fa-hand-holding"></i></span>{{__('Login as User')}} {{__('Payout History')}}
+                                </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        
+            <div class="col-md-8">
+                <div class="card card-primary">
+                    <div class="card-body">
+                        <h4 class="card-title">{{ ucfirst($user->username) }} @lang('Information')</h4>
+                        <form method="post" action="{{ route('user.update', $user->id) }}"
+                              enctype="multipart/form-data">
+                              
+                            @csrf
+                            <div class="row">
+                              
+
+                                <div class="col-md-4">
+                                    <div class="form-group ">
+                                        <label>{{__('Fullname')}}</label>
+                                        <input class="form-control" type="text" name="name"
+                                               value="{{ $user->name }}"
+                                               required>
+                                        @error('name')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="form-group ">
+                                        <label>{{__('Username')}}</label>
+                                        <input class="form-control" type="text" name="username"
+                                               value="{{ $user->username }}" required>
+                                        @error('username')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="form-group ">
+                                        <label>{{__('Email')}}</label>
+                                        <input class="form-control" type="email" name="email" value="{{ $user->email }}"
+                                               required>
+                                        @error('email')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="form-group ">
+                                        <label>{{__('Mobile Number')}}</label>
+                                        <input class="form-control" type="text" name="phone" value="{{ $user->phone }}">
+                                        @error('phone')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+
+                              
+
+                                <div class="col-md-12">
+                                    <div class="form-group ">
+                                        <label>{{__('Address')}}</label>
+                                        <textarea class="form-control" name="address"
+                                                  rows="2">{{ $user->address }}</textarea>
+                                        @error('address')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+
+
+                                <div class="col-md-12">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label>{{__('Status')}}</label>
+                                            <div class="custom-switch-btn w-md-80">
+                                                <input type='hidden' value='1' name='status'>
+                                                <input type="checkbox" name="status" class="custom-switch-checkbox"
+                                                       id="status" {{ $user->status == 0 ? 'checked' : '' }} >
+                                                <label class="custom-switch-checkbox-label" for="status">
+                                                    <span class="status custom-switch-checkbox-inner"></span>
+                                                    <span class="custom-switch-checkbox-switch"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+
+                                        <div class="col-md-3">
+                                            <label>{{__('Email Verification')}}</label>
+                                            <div class="custom-switch-btn w-md-80">
+                                                <input type='hidden' value='1' name='email_verified'>
+                                                <input type="checkbox" name="email_verified"
+                                                       class="custom-switch-checkbox"
+                                                       id="email_verified" {{ $user->email_verified == 0 ? 'checked' : '' }}>
+                                                <label class="custom-switch-checkbox-label" for="email_verified">
+                                                    <span class="verify custom-switch-checkbox-inner"></span>
+                                                    <span class="custom-switch-checkbox-switch"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                      
+
+                                        <div class="col-md-3">
+                                            <label>{{__('2F Security')}}</label>
+                                            <div class="custom-switch-btn w-md-80">
+                                                <input type='hidden' value='0' name='two_factor_enabled'>
+                                                <input type="checkbox" name="two_factor_enabled"
+                                                       class="custom-switch-checkbox"
+                                                       id="two_factor_enabled" {{ $user->two_factor_enabled == 1 ? 'checked' : '' }}>
+                                                <label class="custom-switch-checkbox-label" for="two_factor_enabled">
+                                                    <span class="custom-switch-checkbox-inner"></span>
+                                                    <span class="custom-switch-checkbox-switch"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="submit-btn-wrapper mt-md-3  text-center text-md-left">
+                                <button type="submit"
+                                        class=" btn waves-effect waves-light btn-rounded btn-primary btn-block">
+                                    <span>{{__('Update User')}}</span></button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card card-primary ">
+                    <div class="card-body">
+                        <h4 class="card-title">{{__('Password Change')}}</h4>
+
+                        <form method="post" action="{{ route('user.update',$user->id) }}"
+                              enctype="multipart/form-data">
+                            @csrf
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="form-group ">
+                                        <label>{{__('New Password')}}</label>
+                                        <input id="new_password" type="password" class="form-control" name="password"
+                                               autocomplete="current-password">
+                                        @error('password')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                    <div class="form-group ">
+                                        <label>{{__('Confirm Password')}}</label>
+                                        <input id="confirm_password" type="password" name="password_confirmation"
+                                               autocomplete="current-password" class="form-control">
+                                        @error('password_confirmation')
+                                        <span class="text-danger">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="submit-btn-wrapper mt-md-3 text-center text-md-left">
+                                <button type="submit"
+                                        class="btn waves-effect waves-light btn-rounded btn-primary btn-block">
+                                    <span>{{__('Update Password')}}</span></button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        </div>
+    </div>
+
+
+    <!-- The Modal -->
+    <div class="modal fade" id="balance">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="post" action=""
+                      enctype="multipart/form-data">
+                    @csrf
+                    <!-- Modal Header -->
+                    <div class="modal-header modal-colored-header bg-primary">
+                        <h4 class="modal-title">{{__('Add/ Subtract Balance')}}</h4>
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <!-- Modal body -->
+                    <div class="modal-body">
+                        <div class="form-group ">
+                            <label></label>
+                            <select name="walet" class="form-control">
+                                <option value="" disabled>{{__('Select Wallet')}}</option>
+                                <option value="main_balance" class="text-white bg-dark"></option>
+                                <option value="interest_balance" class="text-white bg-dark"></option>
+                            </select>
+                        </div>
+
+                        <div class="form-group ">
+                            <label>{{__('Amount')}}</label>
+                            <input class="form-control" type="text" name="balance" id="balance">
+                        </div>
+
+                        <div class="form-group">
+                            <div class="custom-switch-btn w-md-100">
+                                <input type='hidden' value='1' name='add_status'>
+                                <input type="checkbox" name="add_status" class=" custom-switch-checkbox" id="add_status"
+                                       value="0">
+                                <label class="custom-switch-checkbox-label" for="add_status">
+                                    <span class="modal_status custom-switch-checkbox-inner"></span>
+                                    <span class="custom-switch-checkbox-switch"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                    </div>
+                    <!-- Modal footer -->
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-dismiss="modal"><span>{{__('Close')}}</span>
+                        </button>
+                        <button type="submit" class=" btn btn-primary balanceSave"><span>{{__('Submit')}}</span>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Admin Login as a User Modal -->
+    <div class="modal fade" id="signIn">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="post" action="" class="loginAccountAction" enctype="multipart/form-data">
+                    @csrf
+                    <!-- Modal Header -->
+                    <div class="modal-header modal-colored-header bg-primary">
+                        <h4 class="modal-title">{{__('Sign In Confirmation')}}</h4>
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <!-- Modal body -->
+                    <div class="modal-body">
+                        <p>{{__('Are You Sure You Want To Sign')}}</p>
+                    </div>
+                    <!-- Modal footer -->
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-dismiss="modal"><span>{{__('Close')}}</span>
+                        </button>
+                        <button type="submit" class=" btn btn-primary "><span>{{__('Yes')}}</span>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+</div>
+</div>
+
+<script type="text/javascript">
+    $(document).ready(function (){
+        $('#myForm').validate({
+            rules: {
+                name: {
+                    required : true,
+                },
+               username: {
+                    required : true,
+                },
+                 email: {
+                    required : true,
+                },
+                 password: {
+                    required : true,
+                },
+
+            },
+            messages :{
+                name: {
+                    required : 'Please Enter Your Name',
+                },
+              username: {
+                    required : 'Please Enter Your Username',
+                },
+                email: {
+                    required : 'Please Enter Your Email',
+                },
+                password: {
+                    required : 'Please Enter Your Password',
+                },
+
+            },
+            errorElement : 'span',
+            errorPlacement: function (error,element) {
+                error.addClass('invalid-feedback');
+                element.closest('.form-group').append(error);
+            },
+            highlight : function(element, errorClass, validClass){
+                $(element).addClass('is-invalid');
+            },
+            unhighlight : function(element, errorClass, validClass){
+                $(element).removeClass('is-invalid');
+            },
+        });
+    });
+
+</script>
+
+@endsection 
